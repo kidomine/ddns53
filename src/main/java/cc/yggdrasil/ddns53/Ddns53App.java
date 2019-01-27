@@ -1,6 +1,5 @@
 package cc.yggdrasil.ddns53;
 
-//import java.io.*;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
@@ -26,7 +25,6 @@ import software.amazon.awssdk.services.route53.model.*;
 
 import org.apache.commons.io.*;
 
-//import cc.yggdrasil.ddns53.Ddns53Config;
 
 /**
  * @author yan
@@ -34,15 +32,15 @@ import org.apache.commons.io.*;
  */
 public class Ddns53App {
 
-    private static Route53Client ddns_R53;
-    private static Ddns53Config ddns_Config;
+    private static Route53Client client;
+    private static Ddns53Config config;
 
     public static void init(Ddns53Config ddns_conf) {
-        ddns_R53 = Route53Client.builder()
+        client = Route53Client.builder()
                 .credentialsProvider(ProfileCredentialsProvider.create())
                 .endpointOverride(URI.create("https://route53.amazonaws.com"))
                 .build();
-        ddns_Config = ddns_conf;
+        config = ddns_conf;
     }
 
     public static void uninit() {
@@ -50,26 +48,25 @@ public class Ddns53App {
     }
 
     public static int update_route53_record() {
-        String new_ip = null;
+        String new_ip;
         int result = 0;
 
         System.out.println("I: " + new Date() + ": updating route53 record...");
 
         new_ip = get_public_ip();
-        if(ddns_Config.ddnscfg_CurrentIP == null) {
-            ddns_Config.ddnscfg_CurrentIP = new_ip;
+        if(config.currentIP == null) {
+            config.currentIP = new_ip;
             update_route53_IP();
             System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
             result = 1;
         } else {
-            if(ddns_Config.ddnscfg_CurrentIP.compareTo(new_ip) != 0) {
-                ddns_Config.ddnscfg_CurrentIP = new_ip;
+            if(config.currentIP.compareTo(new_ip) != 0) {
+                config.currentIP = new_ip;
                 update_route53_IP();
                 System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
                 result = 1;
             } else {
                 System.out.println("I: " + new Date() + ": no change in IP: " + new_ip);
-                result = 0;
             }
         }
 
@@ -81,12 +78,12 @@ public class Ddns53App {
         String new_ip = null;
 
         try {
-            System.out.println("I: " + new Date() + ": obtaining IP from " + ddns_Config.ddnscfg_IPProvider);
-            URL url = new URL(ddns_Config.ddnscfg_IPProvider);
+            System.out.println("I: " + new Date() + ": obtaining IP from " + config.ipProvider);
+            URL url = new URL(config.ipProvider);
 
             String propKey = "User-Agent";
             String propVal = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2";
-            String encoding = null;
+            String encoding;
 
             URLConnection con = url.openConnection();
             con.setReadTimeout(2 * 1000);
@@ -112,20 +109,20 @@ public class Ddns53App {
     }
 
     public static void update_route53_IP() {
-        System.out.println("I: " + new Date() + ": updating route53 record for ID "  + ddns_Config.ddnscfg_HostedZoneId);
+        System.out.println("I: " + new Date() + ": updating route53 record for ID "  + config.hostedZoneId);
 
         ChangeResourceRecordSetsResponse resource_recordset_response;
         ChangeResourceRecordSetsRequest.Builder resource_recordset_request;
         ChangeBatch.Builder change_batch = ChangeBatch.builder();
         ResourceRecord.Builder resource_record = ResourceRecord.builder()
-                .value(ddns_Config.ddnscfg_CurrentIP);
+                .value(config.currentIP);
 
         List<ResourceRecord> resource_record_list = new ArrayList<ResourceRecord>();
         resource_record_list.add(resource_record.build());
 
         // Create a ResourceRecordSet
         ResourceRecordSet.Builder resource_recordset = ResourceRecordSet.builder()
-                .name(ddns_Config.ddnscfg_DomainName)
+                .name(config.domainName)
                 .type(RRType.A)
                 .ttl(new Long(300))
                 .resourceRecords(resource_record_list);
@@ -143,13 +140,12 @@ public class Ddns53App {
 
         // Create ChangeResourceRecordSetRequest.
         resource_recordset_request = ChangeResourceRecordSetsRequest.builder()
-                .hostedZoneId(ddns_Config.ddnscfg_HostedZoneId)
+                .hostedZoneId(config.hostedZoneId)
                 .changeBatch(change_batch.build());
 
         try {
             // Send the request and get the response.
-            resource_recordset_response = ddns_R53.changeResourceRecordSets(resource_recordset_request.build());
-
+            resource_recordset_response = client.changeResourceRecordSets(resource_recordset_request.build());
         } catch (Route53Exception e) {
             System.out.println("I: " + new Date() + ": encountered error: " + e);
             throw e;
@@ -285,8 +281,8 @@ public class Ddns53App {
         if (ddns_cfg == null) {
             ddns_cfg = Ddns53App.parse_input_file(System.getProperty("user.home") + "/.aws/route53");
         } else {
-            if (ddns_cfg.ddnscfg_Filename == null) {
-                ddns_cfg.ddnscfg_Filename = System.getProperty("user.home") + "/.aws/route53";
+            if (ddns_cfg.fileName == null) {
+                ddns_cfg.fileName = System.getProperty("user.home") + "/.aws/route53";
             }
         }
 
@@ -294,30 +290,30 @@ public class Ddns53App {
     }
 
     public static int update_input_file(Ddns53Config ddns_cfg) {
-        if (ddns_cfg.ddnscfg_Filename == null) {
+        if (ddns_cfg.fileName == null) {
             System.out.println("W: " + new Date() + ": nothing to update, no input file provided");
             return 0;
         }
 
-        Path filepath = Paths.get(ddns_cfg.ddnscfg_Filename);
+        Path filepath = Paths.get(ddns_cfg.fileName);
 
         System.out.println("I: " + new Date() + ": updating: " + filepath.toString());
         try (OutputStream fp = Files.newOutputStream(filepath);
              BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp))) {
-            rd.write("zone_id" + " = " + ddns_cfg.ddnscfg_HostedZoneId + "\n");
-            rd.write("domain" + " = " + ddns_cfg.ddnscfg_DomainName + "\n");
-            rd.write("ip_provider" + " = " + ddns_cfg.ddnscfg_IPProvider + "\n");
-            rd.write("current_ip" + " = " + ddns_cfg.ddnscfg_CurrentIP + "\n");
+            rd.write("zone_id" + " = " + ddns_cfg.hostedZoneId + "\n");
+            rd.write("domain" + " = " + ddns_cfg.domainName + "\n");
+            rd.write("ip_provider" + " = " + ddns_cfg.ipProvider + "\n");
+            rd.write("current_ip" + " = " + ddns_cfg.currentIP + "\n");
 
             // not necessary:
             // rd.close();
         } catch (IOException ex) {
             System.err.println(ex);
-            System.out.println("E: " + new Date() + ": unable to update input file: " + ddns_cfg.ddnscfg_Filename);
+            System.out.println("E: " + new Date() + ": unable to update input file: " + ddns_cfg.fileName);
             return -1;
         }
 
-        System.out.println("I: " + new Date() + ": successfully updated input file: " + ddns_cfg.ddnscfg_Filename);
+        System.out.println("I: " + new Date() + ": successfully updated input file: " + ddns_cfg.fileName);
 
         return 0;
     }
