@@ -3,21 +3,10 @@ package cc.yggdrasil.ddns53;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.services.route53.Route53Client;
@@ -32,39 +21,41 @@ import org.apache.commons.io.*;
  */
 public class Ddns53App {
 
-    private static Route53Client client;
-    private static Ddns53Config config;
+    private Route53Client client;
+    private Ddns53Config config;
 
-    public static void init(Ddns53Config ddnsConfiguration) {
-        client = Route53Client.builder()
+    public Ddns53App(Ddns53Config ddnsConfiguration) {
+        this.client = Route53Client.builder()
                 .credentialsProvider(ProfileCredentialsProvider.create())
                 .endpointOverride(URI.create("https://route53.amazonaws.com"))
                 .build();
-        config = ddnsConfiguration;
+        this.config = ddnsConfiguration;
     }
 
     public static void uninit() {
         // TODO add uninit code
     }
 
-    public static int update_route53_record() {
+    public boolean update_route53_record() {
         String new_ip;
-        int result = 0;
+        boolean result = false;
 
         System.out.println("I: " + new Date() + ": updating route53 record...");
 
         new_ip = get_public_ip();
-        if(config.currentIP == null) {
-            config.currentIP = new_ip;
-            update_route53_IP();
-            System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
-            result = 1;
-        } else {
-            if(config.currentIP.compareTo(new_ip) != 0) {
-                config.currentIP = new_ip;
-                update_route53_IP();
+        if(this.config.currentIP == null) {
+            this.config.currentIP = new_ip;
+            result = update_route53_IP();
+            if (result) {
                 System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
-                result = 1;
+            }
+        } else {
+            if(this.config.currentIP.compareTo(new_ip) != 0) {
+                this.config.currentIP = new_ip;
+                result = update_route53_IP();
+                if (result) {
+                    System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
+                }
             } else {
                 System.out.println("I: " + new Date() + ": no change in IP: " + new_ip);
             }
@@ -74,12 +65,12 @@ public class Ddns53App {
         return result;
     }
 
-    public static String get_public_ip() {
+    public String get_public_ip() {
         String new_ip = null;
 
         try {
-            System.out.println("I: " + new Date() + ": obtaining IP from " + config.ipProvider);
-            URL url = new URL(config.ipProvider);
+            System.out.println("I: " + new Date() + ": obtaining IP from " + this.config.ipProvider);
+            URL url = new URL(this.config.ipProvider);
 
             String propKey = "User-Agent";
             String propVal = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2";
@@ -108,23 +99,25 @@ public class Ddns53App {
         return new_ip;
     }
 
-    public static void update_route53_IP() {
-        System.out.println("I: " + new Date() + ": updating route53 record for ID "  + config.hostedZoneId);
+    public boolean update_route53_IP() {
+        boolean result = false;
+
+        System.out.println("I: " + new Date() + ": updating route53 record for ID "  + this.config.hostedZoneId);
 
         ChangeResourceRecordSetsResponse resource_recordset_response;
         ChangeResourceRecordSetsRequest.Builder resource_recordset_request;
         ChangeBatch.Builder change_batch = ChangeBatch.builder();
         ResourceRecord.Builder resource_record = ResourceRecord.builder()
-                .value(config.currentIP);
+                .value(this.config.currentIP);
 
         List<ResourceRecord> resource_record_list = new ArrayList<ResourceRecord>();
         resource_record_list.add(resource_record.build());
 
         // Create a ResourceRecordSet
         ResourceRecordSet.Builder resource_recordset = ResourceRecordSet.builder()
-                .name(config.domainName)
+                .name(this.config.domainName)
                 .type(RRType.A)
-                .ttl(new Long(300))
+                .ttl(300L)
                 .resourceRecords(resource_record_list);
 
         // Create a change
@@ -140,206 +133,44 @@ public class Ddns53App {
 
         // Create ChangeResourceRecordSetRequest.
         resource_recordset_request = ChangeResourceRecordSetsRequest.builder()
-                .hostedZoneId(config.hostedZoneId)
+                .hostedZoneId(this.config.hostedZoneId)
                 .changeBatch(change_batch.build());
 
         try {
             // Send the request and get the response.
-            resource_recordset_response = client.changeResourceRecordSets(resource_recordset_request.build());
+            resource_recordset_response = this.client.changeResourceRecordSets(resource_recordset_request.build());
+
+            // Print the result
+            System.out.println(resource_recordset_response.changeInfo());
+
+            result = true;
         } catch (Route53Exception e) {
             System.out.println("I: " + new Date() + ": encountered error: " + e);
-            throw e;
         }
-
-        // Print the result
-        System.out.println(resource_recordset_response.changeInfo());
-
 
         System.out.println("I: " + new Date() + ": finished updating route53");
-    }
-
-    public static Ddns53Config parse_input_parameters(String[] args) {
-        Ddns53Config ddnsConfiguration;
-        String       zoneId     = null;
-        String       domainName = null;
-        String       ipProvider = null;
-        String       currentIP  = null;
-        int          index      = 0;
-
-
-        while(index < args.length) {
-            if(args[index].compareTo("-i") == 0) {
-                zoneId = args[index + 1];
-            } else if (args[index].compareTo("-d") == 0) {
-                domainName = args[index + 1];
-            } else if (args[index].compareTo("-p") == 0) {
-                ipProvider = args[index + 1];
-            } else if (args[index].compareTo("-c") == 0) {
-                currentIP = args[index + 1];
-            } else {
-                System.out.println("E: " + new Date() + ": invalid input argument: " + args[index]);
-            }
-            index++;
-        }
-
-        if ((zoneId == null) ||
-                (domainName == null) ||
-                (ipProvider == null) ||
-                (currentIP == null))
-        {
-            System.out.println("E: " + new Date() + ": unable to parse input parameters!");
-            return null;
-        } else {
-            System.out.println("I: " + new Date() + ": successfully parsed input parameters!");
-        }
-
-        ddnsConfiguration = new Ddns53Config(null,
-                zoneId,
-                domainName,
-                ipProvider,
-                currentIP);
-        ddnsConfiguration.print_details();
-
-        return ddnsConfiguration;
-    }
-
-    public static Ddns53Config parse_input_file(String filename) {
-        Ddns53Config ddnsConfiguration = null;
-        Path         filepath          = Paths.get(filename);
-        String       zoneId            = null;
-        String       domainName        = null;
-        String       ipProvider        = null;
-        String       currentIP         = null;
-
-        System.out.println("I: " + new Date() + ": trying: " + filepath.toString());
-        try (InputStream fp = Files.newInputStream(filepath);
-             BufferedReader rd = new BufferedReader(new InputStreamReader(fp))) {
-            String line      = null;
-            String t_line    = null;
-            String[] s_lines = null;
-
-            while((line = rd.readLine()) != null) {
-                // interpret each line
-                t_line = line.trim();
-                if (t_line.charAt(0) == '#') {
-                    continue;
-                }
-
-                s_lines = t_line.split("=");
-                if (s_lines.length == 2) {
-                    s_lines[0] = s_lines[0].trim();
-                    s_lines[1] = s_lines[1].trim();
-                    //parse
-                    if (s_lines[0].compareTo("zone_id") == 0) {
-                        zoneId = s_lines[1];
-                    } else if (s_lines[0].compareTo("domain") == 0) {
-                        domainName = s_lines[1];
-                    } else if (s_lines[0].compareTo("ip_provider") == 0) {
-                        ipProvider = s_lines[1];
-                    } else if (s_lines[0].compareTo("current_ip") == 0) {
-                        currentIP = s_lines[1];
-                    }
-                }
-            }
-
-            rd.close();
-
-            if (zoneId != null && domainName != null && ipProvider != null) {
-                ddnsConfiguration = new Ddns53Config(filename,
-                        zoneId,
-                        domainName,
-                        ipProvider,
-                        currentIP);
-            }
-        } catch (IOException ex) {
-            System.err.println(ex);
-        }
-
-        if (ddnsConfiguration == null) {
-            System.out.println("E: " + new Date() + ": unable to parse input file: " + filename);
-        } else {
-            System.out.println("I: " + new Date() + ": successfully parsed input file: " + filename);
-        }
-
-        return ddnsConfiguration;
-    }
-
-    public static Ddns53Config parse_arguments(String[] args) {
-        Ddns53Config ddnsConfiguration = null;
-
-        if (args.length != 0) {
-            if (args.length == 8)
-            {
-                ddnsConfiguration = Ddns53App.parse_input_parameters(args);
-            } else if (args.length == 2) {
-                if (args[0].equals("-cfg")) {
-                    ddnsConfiguration = Ddns53App.parse_input_file(args[1]);
-                }
-            }
-        }
-
-        if (ddnsConfiguration == null) {
-            ddnsConfiguration = Ddns53App.parse_input_file(System.getProperty("user.home") + "/.aws/route53");
-        } else {
-            if (ddnsConfiguration.fileName == null) {
-                ddnsConfiguration.fileName = System.getProperty("user.home") + "/.aws/route53";
-            }
-        }
-
-        return ddnsConfiguration;
-    }
-
-    public static int update_input_file(Ddns53Config ddns_cfg) {
-        if (ddns_cfg.fileName == null) {
-            System.out.println("W: " + new Date() + ": nothing to update, no input file provided");
-            return 0;
-        }
-
-        Path filepath = Paths.get(ddns_cfg.fileName);
-
-        System.out.println("I: " + new Date() + ": updating: " + filepath.toString());
-        try (OutputStream fp = Files.newOutputStream(filepath);
-             BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp))) {
-            rd.write("zone_id" + " = " + ddns_cfg.hostedZoneId + "\n");
-            rd.write("domain" + " = " + ddns_cfg.domainName + "\n");
-            rd.write("ip_provider" + " = " + ddns_cfg.ipProvider + "\n");
-            rd.write("current_ip" + " = " + ddns_cfg.currentIP + "\n");
-
-            // not necessary:
-            // rd.close();
-        } catch (IOException ex) {
-            System.err.println(ex);
-            System.out.println("E: " + new Date() + ": unable to update input file: " + ddns_cfg.fileName);
-            return -1;
-        }
-
-        System.out.println("I: " + new Date() + ": successfully updated input file: " + ddns_cfg.fileName);
-
-        return 0;
+        return result;
     }
 
     /**
      * @param args
      */
     public static void main(String[] args) {
-        Ddns53Config ddns_conf;
+        Ddns53App ddns53;
+        Ddns53Config ddns_conf = new Ddns53Config();
 
         System.out.println("===========================================");
         System.out.println("Running DDNS Client for AWS Route53");
         System.out.println("===========================================");
 
-        ddns_conf = Ddns53App.parse_arguments(args);
-        if(ddns_conf == null) {
-            return;
+        if (ddns_conf.parse_arguments(args)) {
+            ddns_conf.print_details();
+
+            ddns53 = new Ddns53App(ddns_conf);
+            if (ddns53.update_route53_record()) {
+                ddns_conf.update_input_file();
+            }
         }
-
-        ddns_conf.print_details();
-
-        Ddns53App.init(ddns_conf);
-        if (Ddns53App.update_route53_record() == 1) {
-            Ddns53App.update_input_file(ddns_conf);
-        }
-
     }
 }
 
