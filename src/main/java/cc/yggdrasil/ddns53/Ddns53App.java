@@ -35,12 +35,12 @@ public class Ddns53App {
     private static Route53Client client;
     private static Ddns53Config config;
 
-    public static void init(Ddns53Config ddns_conf) {
+    public static void init(Ddns53Config ddnsConfiguration) {
         client = Route53Client.builder()
                 .credentialsProvider(ProfileCredentialsProvider.create())
                 .endpointOverride(URI.create("https://route53.amazonaws.com"))
                 .build();
-        config = ddns_conf;
+        config = ddnsConfiguration;
     }
 
     public static void uninit() {
@@ -159,33 +159,33 @@ public class Ddns53App {
     }
 
     public static Ddns53Config parse_input_parameters(String[] args) {
-        Ddns53Config ddns_cfg;
-        String       zone_id     = null;
-        String       domain_name = null;
-        String       ip_provider = null;
-        String       current_ip  = null;
-        int          index       = 0;
+        Ddns53Config ddnsConfiguration;
+        String       zoneId     = null;
+        String       domainName = null;
+        String       ipProvider = null;
+        String       currentIP  = null;
+        int          index      = 0;
 
 
         while(index < args.length) {
             if(args[index].compareTo("-i") == 0) {
-                zone_id = args[index + 1];
+                zoneId = args[index + 1];
             } else if (args[index].compareTo("-d") == 0) {
-                domain_name = args[index + 1];
+                domainName = args[index + 1];
             } else if (args[index].compareTo("-p") == 0) {
-                ip_provider = args[index + 1];
+                ipProvider = args[index + 1];
             } else if (args[index].compareTo("-c") == 0) {
-                current_ip = args[index + 1];
+                currentIP = args[index + 1];
             } else {
                 System.out.println("E: " + new Date() + ": invalid input argument: " + args[index]);
             }
             index++;
         }
 
-        if ((zone_id == null) ||
-                (domain_name == null) ||
-                (ip_provider == null) ||
-                (current_ip == null))
+        if ((zoneId == null) ||
+                (domainName == null) ||
+                (ipProvider == null) ||
+                (currentIP == null))
         {
             System.out.println("E: " + new Date() + ": unable to parse input parameters!");
             return null;
@@ -193,23 +193,23 @@ public class Ddns53App {
             System.out.println("I: " + new Date() + ": successfully parsed input parameters!");
         }
 
-        ddns_cfg = new Ddns53Config(null,
-                zone_id,
-                domain_name,
-                ip_provider,
-                current_ip);
-        ddns_cfg.print_details();
+        ddnsConfiguration = new Ddns53Config(null,
+                zoneId,
+                domainName,
+                ipProvider,
+                currentIP);
+        ddnsConfiguration.print_details();
 
-        return ddns_cfg;
+        return ddnsConfiguration;
     }
 
     public static Ddns53Config parse_input_file(String filename) {
-        Ddns53Config ddns_cfg    = null;
-        Path filepath    = Paths.get(filename);
-        String          zone_id     = null;
-        String          domain      = null;
-        String          ip_provider = null;
-        String          current_ip  = null;
+        Ddns53Config ddnsConfiguration = null;
+        Path         filepath          = Paths.get(filename);
+        String       zoneId            = null;
+        String       domainName        = null;
+        String       ipProvider        = null;
+        String       currentIP         = null;
 
         System.out.println("I: " + new Date() + ": trying: " + filepath.toString());
         try (InputStream fp = Files.newInputStream(filepath);
@@ -231,62 +231,62 @@ public class Ddns53App {
                     s_lines[1] = s_lines[1].trim();
                     //parse
                     if (s_lines[0].compareTo("zone_id") == 0) {
-                        zone_id = s_lines[1];
+                        zoneId = s_lines[1];
                     } else if (s_lines[0].compareTo("domain") == 0) {
-                        domain = s_lines[1];
+                        domainName = s_lines[1];
                     } else if (s_lines[0].compareTo("ip_provider") == 0) {
-                        ip_provider = s_lines[1];
+                        ipProvider = s_lines[1];
                     } else if (s_lines[0].compareTo("current_ip") == 0) {
-                        current_ip = s_lines[1];
+                        currentIP = s_lines[1];
                     }
                 }
             }
 
             rd.close();
 
-            if (zone_id != null && domain != null && ip_provider != null) {
-                ddns_cfg = new Ddns53Config(filename,
-                        zone_id,
-                        domain,
-                        ip_provider,
-                        current_ip);
+            if (zoneId != null && domainName != null && ipProvider != null) {
+                ddnsConfiguration = new Ddns53Config(filename,
+                        zoneId,
+                        domainName,
+                        ipProvider,
+                        currentIP);
             }
         } catch (IOException ex) {
             System.err.println(ex);
         }
 
-        if (ddns_cfg == null) {
+        if (ddnsConfiguration == null) {
             System.out.println("E: " + new Date() + ": unable to parse input file: " + filename);
         } else {
             System.out.println("I: " + new Date() + ": successfully parsed input file: " + filename);
         }
 
-        return ddns_cfg;
+        return ddnsConfiguration;
     }
 
     public static Ddns53Config parse_arguments(String[] args) {
-        Ddns53Config ddns_cfg = null;
+        Ddns53Config ddnsConfiguration = null;
 
         if (args.length != 0) {
             if (args.length == 8)
             {
-                ddns_cfg = Ddns53App.parse_input_parameters(args);
+                ddnsConfiguration = Ddns53App.parse_input_parameters(args);
             } else if (args.length == 2) {
                 if (args[0].equals("-cfg")) {
-                    ddns_cfg = Ddns53App.parse_input_file(args[1]);
+                    ddnsConfiguration = Ddns53App.parse_input_file(args[1]);
                 }
             }
         }
 
-        if (ddns_cfg == null) {
-            ddns_cfg = Ddns53App.parse_input_file(System.getProperty("user.home") + "/.aws/route53");
+        if (ddnsConfiguration == null) {
+            ddnsConfiguration = Ddns53App.parse_input_file(System.getProperty("user.home") + "/.aws/route53");
         } else {
-            if (ddns_cfg.fileName == null) {
-                ddns_cfg.fileName = System.getProperty("user.home") + "/.aws/route53";
+            if (ddnsConfiguration.fileName == null) {
+                ddnsConfiguration.fileName = System.getProperty("user.home") + "/.aws/route53";
             }
         }
 
-        return ddns_cfg;
+        return ddnsConfiguration;
     }
 
     public static int update_input_file(Ddns53Config ddns_cfg) {
