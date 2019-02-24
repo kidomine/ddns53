@@ -21,7 +21,7 @@ public class Ddns53Config {
         this.currentIP = null;
     }
 
-    public boolean parse_input_parameters(String[] args) {
+    public boolean parseInputParameters(String[] args) {
         boolean result = false;
         int     index  = 0;
 
@@ -46,7 +46,7 @@ public class Ddns53Config {
                 (this.currentIP != null))
         {
             System.out.println("I: " + new Date() + ": successfully parsed input parameters!");
-            this.print_details();
+            this.printDetails();
             result = true;
         } else {
             System.out.println("E: " + new Date() + ": unable to parse input parameters!");
@@ -55,7 +55,7 @@ public class Ddns53Config {
         return result;
     }
 
-    public boolean parse_input_file(String filename) {
+    public boolean parseInputFile(String filename) {
         boolean result = false;
         Path filepath  = Paths.get(filename);
 
@@ -105,7 +105,7 @@ public class Ddns53Config {
         return result;
     }
 
-    public boolean update_input_file() {
+    public boolean updateInputFile() {
         boolean result = false;
 
         if (this.fileName == null) {
@@ -136,23 +136,23 @@ public class Ddns53Config {
         return result;
     }
 
-    public boolean parse_arguments(String[] args) {
+    public boolean parseArguments(String[] args) {
         boolean result = false;
 
         System.out.println("D: arg count: " + args.length);
         if (args.length != 0) {
             if (args.length == 8)
             {
-                result = this.parse_input_parameters(args);
+                result = this.parseInputParameters(args);
             } else if (args.length == 2) {
                 if (args[0].equals("-cfg")) {
-                    result = this.parse_input_file(args[1]);
+                    result = this.parseInputFile(args[1]);
                 }
             }
         }
 
         if (!result) {
-            result = this.parse_input_file(System.getProperty("user.home") + "/.aws/route53");
+            result = this.parseInputFile(System.getProperty("user.home") + "/.aws/route53");
         } else {
             if (this.fileName == null) {
                 this.fileName = System.getProperty("user.home") + "/.aws/route53";
@@ -162,7 +162,7 @@ public class Ddns53Config {
         return result;
     }
 
-    public void print_details() {
+    public void printDetails() {
         System.out.println("I: " + new Date() + ": ******** Current Configuration Settings ********");
         System.out.println("I: " + new Date() + ": Config File: " + this.fileName);
         System.out.println("I: " + new Date() + ": Zone ID    : " + this.hostedZoneId);

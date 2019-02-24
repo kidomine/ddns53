@@ -36,23 +36,23 @@ public class Ddns53App {
         // TODO add uninit code
     }
 
-    public boolean update_route53_record() {
+    public boolean updateRoute53Record() {
         String new_ip;
         boolean result = false;
 
         System.out.println("I: " + new Date() + ": updating route53 record...");
 
-        new_ip = get_public_ip();
+        new_ip = getPublicIP();
         if(this.config.currentIP == null) {
             this.config.currentIP = new_ip;
-            result = update_route53_IP();
+            result = updateRoute53IP();
             if (result) {
                 System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
             }
         } else {
             if(this.config.currentIP.compareTo(new_ip) != 0) {
                 this.config.currentIP = new_ip;
-                result = update_route53_IP();
+                result = updateRoute53IP();
                 if (result) {
                     System.out.println("I: " + new Date() + ": assigned new IP: " + new_ip);
                 }
@@ -65,7 +65,7 @@ public class Ddns53App {
         return result;
     }
 
-    public String get_public_ip() {
+    public String getPublicIP() {
         String new_ip = null;
 
         try {
@@ -99,7 +99,7 @@ public class Ddns53App {
         return new_ip;
     }
 
-    public boolean update_route53_IP() {
+    public boolean updateRoute53IP() {
         boolean result = false;
 
         System.out.println("I: " + new Date() + ": updating route53 record for ID "  + this.config.hostedZoneId);
@@ -163,12 +163,12 @@ public class Ddns53App {
         System.out.println("Running DDNS Client for AWS Route53");
         System.out.println("===========================================");
 
-        if (ddns_conf.parse_arguments(args)) {
-            ddns_conf.print_details();
+        if (ddns_conf.parseArguments(args)) {
+            ddns_conf.printDetails();
 
             ddns53 = new Ddns53App(ddns_conf);
-            if (ddns53.update_route53_record()) {
-                ddns_conf.update_input_file();
+            if (ddns53.updateRoute53Record()) {
+                ddns_conf.updateInputFile();
             }
         }
     }
