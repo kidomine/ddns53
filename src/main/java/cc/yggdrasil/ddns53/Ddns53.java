@@ -1,5 +1,6 @@
 package cc.yggdrasil.ddns53;
 
+import lombok.*;
 import org.apache.commons.io.*;
 import org.slf4j.*;
 import org.springframework.beans.factory.annotation.*;
@@ -24,11 +25,12 @@ public class Ddns53
 
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
+    @NonNull
     private Ddns53Config config;
     private Route53Client route53Client;
 
     @Autowired
-    public Ddns53(Ddns53Config ddnsConfiguration)
+    public Ddns53(final Ddns53Config ddnsConfiguration)
     {
         route53Client = Route53Client.builder()
                                      .credentialsProvider(ProfileCredentialsProvider.create())
@@ -37,39 +39,42 @@ public class Ddns53
         config = ddnsConfiguration;
     }
 
+    /**
+     * Updates the Route53 record with the given configuration.
+     *
+     * @return true if the Route53 record has been updated successfully, otherwise returns false
+     */
     public boolean updateRoute53Record()
     {
-        String new_ip;
+        final String newIp = getPublicIp();
         boolean result = false;
 
-        logger.info("Updating route53 record...");
+        logger.info("Updating Route53 record...");
 
-        new_ip = getPublicIp();
-        if (this.config.currentIP == null)
+        if (config.getCurrentIP() == null)
         {
-            this.config.currentIP = new_ip;
-            result = updateRoute53Ip();
+            result = updateRoute53Ip(newIp);
             if (result)
             {
-                logger.info("Assigned new IP: " + new_ip);
+                logger.info("Assigned new IP: " + newIp);
             }
         } else
         {
-            if (this.config.currentIP.compareTo(new_ip) != 0)
+            if (!config.getCurrentIP()
+                       .equals(newIp))
             {
-                this.config.currentIP = new_ip;
-                result = updateRoute53Ip();
+                result = updateRoute53Ip(newIp);
                 if (result)
                 {
-                    logger.info("Assigned new IP: " + new_ip);
+                    logger.info("Assigned new IP: " + newIp);
                 }
             } else
             {
-                logger.info("No change in IP: " + new_ip);
+                logger.info("No change in IP: " + newIp);
             }
         }
 
-        logger.info("Finished updating route53 record!");
+        logger.info("Finished updating Route53 record!");
         return result;
     }
 
@@ -80,19 +85,18 @@ public class Ddns53
      */
     private String getPublicIp()
     {
-        String new_ip = null;
+        String newIp = null;
 
-        logger.info("Obtaining IP from " + config.ipProvider);
+        logger.info("Obtaining IP from " + config.getIpProvider());
 
         try
         {
 
-            URL url = new URL(this.config.ipProvider);
+            URL url = new URL(config.getIpProvider());
 
-            String propKey = "User-Agent";
-            String propVal = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 " +
-                    "Firefox/3.6.2";
-            String encoding;
+            final String propKey = "User-Agent";
+            final String propVal = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316" +
+                    " Firefox/3.6.2";
 
             URLConnection con = url.openConnection();
             con.setReadTimeout(2 * 1000);
@@ -101,12 +105,15 @@ public class Ddns53
 
             InputStream in = con.getInputStream();
 
-            encoding = con.getContentEncoding();
-            encoding = encoding == null ? "UTF-8" : encoding;
+            String encoding = con.getContentEncoding();
+            if (encoding == null)
+            {
+                encoding = "UTF-8";
+            }
 
-            new_ip = IOUtils.toString(in, encoding);
+            newIp = IOUtils.toString(in, encoding);
 
-            logger.info("Got new IP     : " + new_ip);
+            logger.info("Got new IP     : " + newIp);
 
             in.close();
         } catch (Exception caught)
@@ -114,57 +121,55 @@ public class Ddns53
             logger.error("Unable to get new IP from provider.", caught);
         }
 
-        return new_ip;
+        return newIp;
     }
 
     /**
      * Update the IP on the Route53 record.
      *
+     * @param newIp the new IP address
      * @return true if the IP has been updated, otherwise returns false
      */
-    private boolean updateRoute53Ip()
+    private boolean updateRoute53Ip(final String newIp)
     {
-        logger.info("Updating route53 record for ID " + this.config.hostedZoneId);
+        logger.info("Updating Route53 record for ID " + config.getHostedZoneId());
 
-        ChangeResourceRecordSetsResponse resource_recordset_response;
-        ChangeResourceRecordSetsRequest.Builder resource_recordset_request;
-        ChangeBatch.Builder change_batch = ChangeBatch.builder();
-        ResourceRecord.Builder resource_record = ResourceRecord.builder()
-                                                               .value(this.config.currentIP);
+        final ChangeBatch.Builder change_batch = ChangeBatch.builder();
 
         List<ResourceRecord> resource_record_list = new ArrayList<ResourceRecord>();
-        resource_record_list.add(resource_record.build());
+        resource_record_list.add(ResourceRecord.builder()
+                                               .value(newIp)
+                                               .build());
 
-        // Create a ResourceRecordSet
         ResourceRecordSet.Builder resource_recordset = ResourceRecordSet.builder()
-                                                                        .name(this.config.domainName)
+                                                                        .name(config.getDomainName())
                                                                         .type(RRType.A)
                                                                         .ttl(300L)
                                                                         .resourceRecords(resource_record_list);
 
-        // Create a change
         Change.Builder change = Change.builder()
                                       .action(ChangeAction.UPSERT)
                                       .resourceRecordSet(resource_recordset.build());
 
         List<Change> changes_list = new ArrayList<Change>();
         changes_list.add(change.build());
-
-        // Create a change batch
         change_batch.changes(changes_list);
 
-        // Create ChangeResourceRecordSetRequest.
-        resource_recordset_request = ChangeResourceRecordSetsRequest.builder()
-                                                                    .hostedZoneId(this.config.hostedZoneId)
-                                                                    .changeBatch(change_batch.build());
+        final ChangeResourceRecordSetsRequest.Builder resource_recordset_request =
+                ChangeResourceRecordSetsRequest.builder()
+                                               .hostedZoneId(config.getHostedZoneId())
+                                               .changeBatch(change_batch.build());
 
         boolean result = false;
         try
         {
-            resource_recordset_response = this.route53Client.changeResourceRecordSets(resource_recordset_request.build());
+            final ChangeResourceRecordSetsResponse resource_recordset_response =
+                    route53Client.changeResourceRecordSets(resource_recordset_request.build());
 
             logger.info(String.valueOf(resource_recordset_response.changeInfo()));
             logger.info("Finished updating Route53");
+
+            config.setCurrentIP(newIp);
 
             result = true;
         } catch (Route53Exception caught)

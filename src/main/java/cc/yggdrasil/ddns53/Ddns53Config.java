@@ -1,29 +1,131 @@
 package cc.yggdrasil.ddns53;
 
+import lombok.*;
 import org.slf4j.*;
 import org.springframework.stereotype.*;
 
 import java.io.*;
 import java.nio.file.*;
 
-@Component
+@Component @Getter @Setter
 public class Ddns53Config
 {
-    private Logger logger = LoggerFactory.getLogger(this.getClass());
+    @NonNull
+    private String fileName;
 
-    String fileName;
-    String hostedZoneId;
-    String domainName;
-    String currentIP;
-    String ipProvider;
+    @NonNull
+    private String hostedZoneId;
+
+    @NonNull
+    private String domainName;
+
+    @NonNull
+    private String currentIP;
+
+    @NonNull
+    private String ipProvider;
+
+    private Logger logger = LoggerFactory.getLogger(this.getClass());
 
     /**
      * Parse the input arguments and loads them into this class.
-     * 
+     *
      * @param args the input arguments to be parsed
      * @return true if the input arguments have been parsed successfully, otherwise returns false
      */
-    public boolean parseInputArguments(String[] args)
+    public boolean parseArguments(String[] args)
+    {
+        boolean result = false;
+
+        logger.debug("Argument count: " + args.length);
+        if (args.length != 0)
+        {
+            if (args.length == 8)
+            {
+                result = parseInputArguments(args);
+            }
+            else if (args.length == 2)
+            {
+                if (args[0].equals("-cfg"))
+                {
+                    result = parseConfigFile(args[1]);
+                }
+            }
+        }
+
+        if (!result)
+        {
+            result = parseConfigFile(System.getProperty("user.home") + "/.aws/route53");
+        }
+        else
+        {
+            if (fileName == null)
+            {
+                fileName = System.getProperty("user.home") + "/.aws/route53";
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Updates the config file with new values.
+     *
+     * @return true if the config file has been updated successfully, otherwise returns false
+     */
+    public boolean updateConfigFile()
+    {
+        boolean result = false;
+
+        if (fileName == null)
+        {
+            logger.warn("Nothing to update, no input file provided");
+        }
+        else
+        {
+            final Path filepath = Paths.get(fileName);
+
+            logger.info("Updating: " + filepath.toString());
+            try (OutputStream fp = Files.newOutputStream(filepath);
+                 BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
+            {
+                rd.write("zone_id" + " = " + hostedZoneId + "\n");
+                rd.write("domain" + " = " + domainName + "\n");
+                rd.write("ip_provider" + " = " + ipProvider + "\n");
+                rd.write("current_ip" + " = " + currentIP + "\n");
+
+                logger.info("Successfully updated input file: " + fileName);
+                result = true;
+            } catch (final IOException caught)
+            {
+                logger.error("Unable to update input file: " + fileName, caught);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Print the details of the current configuration.
+     */
+    public void printDetails()
+    {
+        logger.info("******** Current Configuration Settings ********");
+        logger.info("Config File: " + fileName);
+        logger.info("Zone ID    : " + hostedZoneId);
+        logger.info("Domain Name: " + domainName);
+        logger.info("IP Provider: " + ipProvider);
+        logger.info("Current IP : " + currentIP);
+        logger.info("************************************************");
+    }
+
+    /**
+     * Parse the input arguments and loads them into this class.
+     *
+     * @param args the input arguments to be parsed
+     * @return true if the input arguments have been parsed successfully, otherwise returns false
+     */
+    private boolean parseInputArguments(String[] args)
     {
         boolean result = false;
         int index = 0;
@@ -32,16 +134,16 @@ public class Ddns53Config
         {
             if (args[index].compareTo("-i") == 0)
             {
-                this.hostedZoneId = args[index + 1];
+                hostedZoneId = args[index + 1];
             } else if (args[index].compareTo("-d") == 0)
             {
-                this.domainName = args[index + 1];
+                domainName = args[index + 1];
             } else if (args[index].compareTo("-p") == 0)
             {
-                this.ipProvider = args[index + 1];
+                ipProvider = args[index + 1];
             } else if (args[index].compareTo("-c") == 0)
             {
-                this.currentIP = args[index + 1];
+                currentIP = args[index + 1];
             } else
             {
                 logger.error("Invalid input argument: " + args[index]);
@@ -49,13 +151,9 @@ public class Ddns53Config
             index++;
         }
 
-        if ((this.hostedZoneId != null) &&
-                (this.domainName != null) &&
-                (this.ipProvider != null) &&
-                (this.currentIP != null))
+        if (isLoaded())
         {
             logger.info("Successfully parsed input parameters!");
-            printDetails();
             result = true;
         } else
         {
@@ -74,7 +172,7 @@ public class Ddns53Config
     private boolean parseConfigFile(final String filename)
     {
         boolean result = false;
-        Path filepath = Paths.get(filename);
+        final Path filepath = Paths.get(filename);
 
         logger.info("Trying: " + filepath.toString());
 
@@ -103,23 +201,24 @@ public class Ddns53Config
 
                     if (s_lines[0].compareTo("zone_id") == 0)
                     {
-                        this.hostedZoneId = s_lines[1];
+                        hostedZoneId = s_lines[1];
                     } else if (s_lines[0].compareTo("domain") == 0)
                     {
-                        this.domainName = s_lines[1];
+                        domainName = s_lines[1];
                     } else if (s_lines[0].compareTo("ip_provider") == 0)
                     {
-                        this.ipProvider = s_lines[1];
+                        ipProvider = s_lines[1];
                     } else if (s_lines[0].compareTo("current_ip") == 0)
                     {
-                        this.currentIP = s_lines[1];
+                        currentIP = s_lines[1];
                     }
                 }
             }
 
-            if (this.hostedZoneId != null && domainName != null && ipProvider != null)
+            if (isLoaded())
             {
                 logger.info("Successfully parsed input file: " + filename);
+                fileName = filename;
                 result = true;
             } else
             {
@@ -127,7 +226,8 @@ public class Ddns53Config
             }
 
             rd.close();
-        } catch (final IOException caught){
+        } catch (final IOException caught)
+        {
             logger.error("Unable to read config file.", caught);
         }
 
@@ -135,91 +235,18 @@ public class Ddns53Config
     }
 
     /**
-     * Updates the config file with new values.
+     * Checks if the configuration is loaded into this class.
      *
-     * @return true if the config file has been updated successfully, otherwise returns false
+     * @return true if this class has been loaded, otherwise returns false
      */
-    public boolean updateConfigFile()
+    private boolean isLoaded()
     {
-        boolean result = false;
-
-        if (fileName == null)
+        if (hostedZoneId != null && domainName != null && ipProvider != null && currentIP != null)
         {
-            logger.warn("Nothing to update, no input file provided");
-        } else
-        {
-            Path filepath = Paths.get(fileName);
-
-            logger.info("Updating: " + filepath.toString());
-            try (OutputStream fp = Files.newOutputStream(filepath);
-                 BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
-            {
-                rd.write("zone_id" + " = " + hostedZoneId + "\n");
-                rd.write("domain" + " = " + domainName + "\n");
-                rd.write("ip_provider" + " = " + ipProvider + "\n");
-                rd.write("current_ip" + " = " + currentIP + "\n");
-
-                // not necessary:
-                // rd.close();
-
-                logger.info("Successfully updated input file: " + fileName);
-                result = true;
-            } catch (final IOException caught)
-            {
-                logger.error("Unable to update input file: " + fileName, caught);
-            }
+            printDetails();
+            return true;
         }
 
-        return result;
-    }
-
-    /**
-     * Parse the input arguments and loads them into this class.
-     *
-     * @param args the input arguments to be parsed
-     * @return true if the input arguments have been parsed successfully, otherwise returns false
-     */
-    public boolean parseArguments(String[] args)
-    {
-        boolean result = false;
-
-        logger.debug("Argument count: " + args.length);
-        if (args.length != 0)
-        {
-            if (args.length == 8)
-            {
-                result = parseInputArguments(args);
-            } else if (args.length == 2)
-            {
-                if (args[0].equals("-cfg"))
-                {
-                    result = parseConfigFile(args[1]);
-                }
-            }
-        }
-
-        if (!result)
-        {
-            result = this.parseConfigFile(System.getProperty("user.home") + "/.aws/route53");
-        } else
-        {
-            if (fileName == null)
-            {
-                fileName = System.getProperty("user.home") + "/.aws/route53";
-            }
-        }
-
-        return result;
-    }
-
-    public void printDetails()
-    {
-        logger.info("******** Current Configuration Settings ********");
-        logger.info("Config File: " + fileName);
-        logger.info("Zone ID    : " + hostedZoneId);
-        logger.info("Domain Name: " + domainName);
-        logger.info("IP Provider: " + ipProvider);
-        logger.info("Current IP : " + currentIP);
-        logger.info("************************************************");
+        return false;
     }
 }
