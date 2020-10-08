@@ -7,7 +7,9 @@ import org.springframework.stereotype.*;
 import java.io.*;
 import java.nio.file.*;
 
-@Component @Getter @Setter
+@Component
+@Getter
+@Setter
 public class Ddns53Config
 {
     @NonNull
@@ -43,8 +45,7 @@ public class Ddns53Config
             if (args.length == 8)
             {
                 result = parseInputArguments(args);
-            }
-            else if (args.length == 2)
+            } else if (args.length == 2)
             {
                 if (args[0].equals("-cfg"))
                 {
@@ -56,8 +57,7 @@ public class Ddns53Config
         if (!result)
         {
             result = parseConfigFile(System.getProperty("user.home") + "/.aws/route53");
-        }
-        else
+        } else
         {
             if (fileName == null)
             {
@@ -70,39 +70,31 @@ public class Ddns53Config
 
     /**
      * Updates the config file with new values.
-     *
-     * @return true if the config file has been updated successfully, otherwise returns false
      */
-    public boolean updateConfigFile()
+    public void updateConfigFile()
     {
-        boolean result = false;
-
         if (fileName == null)
         {
             logger.warn("Nothing to update, no input file provided");
+            return;
         }
-        else
+
+        final Path filepath = Paths.get(fileName);
+
+        logger.info("Updating: " + filepath.toString());
+        try (final OutputStream fp = Files.newOutputStream(filepath);
+             BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
         {
-            final Path filepath = Paths.get(fileName);
+            rd.write("zone_id" + " = " + hostedZoneId + "\n");
+            rd.write("domain" + " = " + domainName + "\n");
+            rd.write("ip_provider" + " = " + ipProvider + "\n");
+            rd.write("current_ip" + " = " + currentIP + "\n");
 
-            logger.info("Updating: " + filepath.toString());
-            try (OutputStream fp = Files.newOutputStream(filepath);
-                 BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
-            {
-                rd.write("zone_id" + " = " + hostedZoneId + "\n");
-                rd.write("domain" + " = " + domainName + "\n");
-                rd.write("ip_provider" + " = " + ipProvider + "\n");
-                rd.write("current_ip" + " = " + currentIP + "\n");
-
-                logger.info("Successfully updated input file: " + fileName);
-                result = true;
-            } catch (final IOException caught)
-            {
-                logger.error("Unable to update input file: " + fileName, caught);
-            }
+            logger.info("Successfully updated input file: " + fileName);
+        } catch (final IOException caught)
+        {
+            logger.error("Unable to update input file: " + fileName, caught);
         }
-
-        return result;
     }
 
     /**
@@ -127,7 +119,6 @@ public class Ddns53Config
      */
     private boolean parseInputArguments(String[] args)
     {
-        boolean result = false;
         int index = 0;
 
         while (index < args.length)
@@ -154,13 +145,11 @@ public class Ddns53Config
         if (isLoaded())
         {
             logger.info("Successfully parsed input parameters!");
-            result = true;
-        } else
-        {
-            logger.error("Unable to parse input parameters!");
+            return true;
         }
 
-        return result;
+        logger.error("Unable to parse input parameters!");
+        return false;
     }
 
     /**

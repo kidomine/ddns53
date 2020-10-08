@@ -26,8 +26,8 @@ public class Ddns53
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @NonNull
-    private Ddns53Config config;
-    private Route53Client route53Client;
+    private final Ddns53Config config;
+    private final Route53Client route53Client;
 
     @Autowired
     public Ddns53(final Ddns53Config ddnsConfiguration)
@@ -47,35 +47,22 @@ public class Ddns53
     public boolean updateRoute53Record()
     {
         final String newIp = getPublicIp();
-        boolean result = false;
 
         logger.info("Updating Route53 record...");
 
-        if (config.getCurrentIP() == null)
+        if (config.getCurrentIP() == null || !config.getCurrentIP()
+                                                    .equals(newIp))
         {
-            result = updateRoute53Ip(newIp);
-            if (result)
+            if (updateRoute53Ip(newIp))
             {
                 logger.info("Assigned new IP: " + newIp);
-            }
-        } else
-        {
-            if (!config.getCurrentIP()
-                       .equals(newIp))
-            {
-                result = updateRoute53Ip(newIp);
-                if (result)
-                {
-                    logger.info("Assigned new IP: " + newIp);
-                }
-            } else
-            {
-                logger.info("No change in IP: " + newIp);
+                logger.info("Finished updating Route53 record!");
+                return true;
             }
         }
 
-        logger.info("Finished updating Route53 record!");
-        return result;
+        logger.info("No change in IP: " + newIp);
+        return false;
     }
 
     /**
@@ -116,7 +103,7 @@ public class Ddns53
             logger.info("Got new IP     : " + newIp);
 
             in.close();
-        } catch (Exception caught)
+        } catch (final Exception caught)
         {
             logger.error("Unable to get new IP from provider.", caught);
         }
@@ -136,7 +123,7 @@ public class Ddns53
 
         final ChangeBatch.Builder change_batch = ChangeBatch.builder();
 
-        List<ResourceRecord> resource_record_list = new ArrayList<ResourceRecord>();
+        List<ResourceRecord> resource_record_list = new ArrayList<>();
         resource_record_list.add(ResourceRecord.builder()
                                                .value(newIp)
                                                .build());
@@ -151,7 +138,7 @@ public class Ddns53
                                       .action(ChangeAction.UPSERT)
                                       .resourceRecordSet(resource_recordset.build());
 
-        List<Change> changes_list = new ArrayList<Change>();
+        List<Change> changes_list = new ArrayList<>();
         changes_list.add(change.build());
         change_batch.changes(changes_list);
 
@@ -172,7 +159,7 @@ public class Ddns53
             config.setCurrentIP(newIp);
 
             result = true;
-        } catch (Route53Exception caught)
+        } catch (final Route53Exception caught)
         {
             logger.error("Unable to update IP on Route53." + caught);
         }
