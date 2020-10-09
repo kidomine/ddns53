@@ -37,35 +37,25 @@ public class Ddns53Config
      */
     public boolean parseArguments(String[] args)
     {
-        boolean result = false;
+        logger.debug(String.format("Argument count: %s", args.length));
 
-        logger.debug("Argument count: " + args.length);
-        if (args.length != 0)
+        if (args.length == 0)
         {
-            if (args.length == 8)
-            {
-                result = parseInputArguments(args);
-            } else if (args.length == 2)
-            {
-                if (args[0].equals("-cfg"))
-                {
-                    result = parseConfigFile(args[1]);
-                }
-            }
+            final String filename = System.getProperty("user.home") + "/.aws/route53";
+            return loadConfigFile(filename);
         }
 
-        if (!result)
+        if (args.length == 8)
         {
-            result = parseConfigFile(System.getProperty("user.home") + "/.aws/route53");
-        } else
-        {
-            if (fileName == null)
-            {
-                fileName = System.getProperty("user.home") + "/.aws/route53";
-            }
+            return loadInputArguments(args);
         }
 
-        return result;
+        if (args.length == 2 && args[0].equals("-cfg"))
+        {
+            return loadConfigFile(args[1]);
+        }
+
+        return false;
     }
 
     /**
@@ -81,19 +71,20 @@ public class Ddns53Config
 
         final Path filepath = Paths.get(fileName);
 
-        logger.info("Updating: " + filepath.toString());
+        logger.info(String.format("Updating: %s", filepath.toString()));
         try (final OutputStream fp = Files.newOutputStream(filepath);
-             BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
+             final BufferedWriter rd = new BufferedWriter(new OutputStreamWriter(fp)))
         {
             rd.write("zone_id" + " = " + hostedZoneId + "\n");
             rd.write("domain" + " = " + domainName + "\n");
             rd.write("ip_provider" + " = " + ipProvider + "\n");
             rd.write("current_ip" + " = " + currentIP + "\n");
 
-            logger.info("Successfully updated input file: " + fileName);
-        } catch (final IOException caught)
+            logger.info(String.format("Successfully updated input file: %s", fileName));
+        }
+        catch (final IOException caught)
         {
-            logger.error("Unable to update input file: " + fileName, caught);
+            logger.error(String.format("Unable to update input file: %s", fileName), caught);
         }
     }
 
@@ -103,11 +94,11 @@ public class Ddns53Config
     public void printDetails()
     {
         logger.info("******** Current Configuration Settings ********");
-        logger.info("Config File: " + fileName);
-        logger.info("Zone ID    : " + hostedZoneId);
-        logger.info("Domain Name: " + domainName);
-        logger.info("IP Provider: " + ipProvider);
-        logger.info("Current IP : " + currentIP);
+        logger.info(String.format("Config File: %s", fileName));
+        logger.info(String.format("Zone ID    : %s", hostedZoneId));
+        logger.info(String.format("Domain Name: %s", domainName));
+        logger.info(String.format("IP Provider: %s", ipProvider));
+        logger.info(String.format("Current IP : %s", currentIP));
         logger.info("************************************************");
     }
 
@@ -117,39 +108,32 @@ public class Ddns53Config
      * @param args the input arguments to be parsed
      * @return true if the input arguments have been parsed successfully, otherwise returns false
      */
-    private boolean parseInputArguments(String[] args)
+    private boolean loadInputArguments(String[] args)
     {
         int index = 0;
 
         while (index < args.length)
         {
-            if (args[index].compareTo("-i") == 0)
+            if (args[index].equals("-i"))
             {
                 hostedZoneId = args[index + 1];
-            } else if (args[index].compareTo("-d") == 0)
+            } else if (args[index].equals("-d"))
             {
                 domainName = args[index + 1];
-            } else if (args[index].compareTo("-p") == 0)
+            } else if (args[index].equals("-p"))
             {
                 ipProvider = args[index + 1];
-            } else if (args[index].compareTo("-c") == 0)
+            } else if (args[index].equals("-c"))
             {
                 currentIP = args[index + 1];
             } else
             {
-                logger.error("Invalid input argument: " + args[index]);
+                logger.error(String.format("Invalid input argument: %s", args[index]));
             }
             index++;
         }
 
-        if (isLoaded())
-        {
-            logger.info("Successfully parsed input parameters!");
-            return true;
-        }
-
-        logger.error("Unable to parse input parameters!");
-        return false;
+        return isLoaded();
     }
 
     /**
@@ -158,69 +142,62 @@ public class Ddns53Config
      * @param filename the file containing the configuration
      * @return true if the configuration file has been parsed sucessfully, otherwise returns false
      */
-    private boolean parseConfigFile(final String filename)
+    private boolean loadConfigFile(final String filename)
     {
-        boolean result = false;
         final Path filepath = Paths.get(filename);
 
-        logger.info("Trying: " + filepath.toString());
+        logger.info(String.format("Trying: %s", filepath.toString()));
 
         try
         {
-            InputStream fp = Files.newInputStream(filepath);
-            BufferedReader rd = new BufferedReader(new InputStreamReader(fp));
-
-            String line;
-            String t_line;
-            String[] s_lines;
-
-            while ((line = rd.readLine()) != null)
+            final InputStream fp = Files.newInputStream(filepath);
+            try (final BufferedReader rd = new BufferedReader(new InputStreamReader(fp)))
             {
-                t_line = line.trim();
-                if (t_line.charAt(0) == '#')
-                {
-                    continue;
-                }
 
-                s_lines = t_line.split("=");
-                if (s_lines.length == 2)
-                {
-                    s_lines[0] = s_lines[0].trim();
-                    s_lines[1] = s_lines[1].trim();
+                String line;
+                String trimmedLine;
+                String[] splitLines;
 
-                    if (s_lines[0].compareTo("zone_id") == 0)
+                while ((line = rd.readLine()) != null)
+                {
+                    trimmedLine = line.trim();
+                    if (trimmedLine.charAt(0) == '#')
                     {
-                        hostedZoneId = s_lines[1];
-                    } else if (s_lines[0].compareTo("domain") == 0)
+                        continue;
+                    }
+
+                    splitLines = trimmedLine.split("=");
+                    if (splitLines.length == 2)
                     {
-                        domainName = s_lines[1];
-                    } else if (s_lines[0].compareTo("ip_provider") == 0)
-                    {
-                        ipProvider = s_lines[1];
-                    } else if (s_lines[0].compareTo("current_ip") == 0)
-                    {
-                        currentIP = s_lines[1];
+                        splitLines[0] = splitLines[0].trim();
+                        splitLines[1] = splitLines[1].trim();
+
+                        if (splitLines[0].equalsIgnoreCase("zone_id"))
+                        {
+                            hostedZoneId = splitLines[1];
+                        } else if (splitLines[0].equalsIgnoreCase("domain"))
+                        {
+                            domainName = splitLines[1];
+                        } else if (splitLines[0].equalsIgnoreCase("ip_provider"))
+                        {
+                            ipProvider = splitLines[1];
+                        } else if (splitLines[0].equalsIgnoreCase("current_ip"))
+                        {
+                            currentIP = splitLines[1];
+                        }
                     }
                 }
             }
 
-            if (isLoaded())
-            {
-                logger.info("Successfully parsed input file: " + filename);
-                fileName = filename;
-                result = true;
-            } else
-            {
-                logger.error("Unable to parse input file: " + filename);
-            }
+            printDetails();
 
-            rd.close();
+            return isLoaded();
         } catch (final IOException caught)
         {
             logger.error("Unable to read config file.", caught);
         }
 
-        return result;
+        return false;
     }
 
     /**
@@ -232,10 +209,11 @@ public class Ddns53Config
     {
         if (hostedZoneId != null && domainName != null && ipProvider != null && currentIP != null)
         {
-            printDetails();
+            logger.info("Configuration has been successfully loaded!");
             return true;
         }
 
+        logger.info("Configuration has not been loaded!");
         return false;
     }
 }

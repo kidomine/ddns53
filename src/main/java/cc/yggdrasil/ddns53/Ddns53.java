@@ -23,11 +23,10 @@ import java.util.*;
 public class Ddns53
 {
 
-    Logger logger = LoggerFactory.getLogger(this.getClass());
-
     @NonNull
     private final Ddns53Config config;
     private final Route53Client route53Client;
+    Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @Autowired
     public Ddns53(final Ddns53Config ddnsConfiguration)
@@ -50,18 +49,15 @@ public class Ddns53
 
         logger.info("Updating Route53 record...");
 
-        if (config.getCurrentIP() == null || !config.getCurrentIP()
-                                                    .equals(newIp))
+        if (!config.getCurrentIP()
+                   .equals(newIp) && updateRoute53Ip(newIp))
         {
-            if (updateRoute53Ip(newIp))
-            {
-                logger.info("Assigned new IP: " + newIp);
-                logger.info("Finished updating Route53 record!");
-                return true;
-            }
+            logger.info(String.format("Assigned new IP: %s", newIp));
+            logger.info("Finished updating Route53 record!");
+            return true;
         }
 
-        logger.info("No change in IP: " + newIp);
+        logger.info(String.format("No change in IP: %s", newIp));
         return false;
     }
 
@@ -74,7 +70,7 @@ public class Ddns53
     {
         String newIp = null;
 
-        logger.info("Obtaining IP from " + config.getIpProvider());
+        logger.info(String.format("Obtaining IP from %s", config.getIpProvider()));
 
         try
         {
@@ -100,7 +96,7 @@ public class Ddns53
 
             newIp = IOUtils.toString(in, encoding);
 
-            logger.info("Got new IP     : " + newIp);
+            logger.info(String.format("Got new IP     : %s", newIp));
 
             in.close();
         } catch (final Exception caught)
@@ -119,41 +115,41 @@ public class Ddns53
      */
     private boolean updateRoute53Ip(final String newIp)
     {
-        logger.info("Updating Route53 record for ID " + config.getHostedZoneId());
+        logger.info(String.format("Updating Route53 record for ID %s", config.getHostedZoneId()));
 
-        final ChangeBatch.Builder change_batch = ChangeBatch.builder();
+        final ChangeBatch.Builder changeBatch = ChangeBatch.builder();
 
-        List<ResourceRecord> resource_record_list = new ArrayList<>();
-        resource_record_list.add(ResourceRecord.builder()
-                                               .value(newIp)
-                                               .build());
+        final List<ResourceRecord> resourceRecordList = new ArrayList<>();
+        resourceRecordList.add(ResourceRecord.builder()
+                                             .value(newIp)
+                                             .build());
 
-        ResourceRecordSet.Builder resource_recordset = ResourceRecordSet.builder()
-                                                                        .name(config.getDomainName())
-                                                                        .type(RRType.A)
-                                                                        .ttl(300L)
-                                                                        .resourceRecords(resource_record_list);
+        ResourceRecordSet.Builder resourceRecordset = ResourceRecordSet.builder()
+                                                                       .name(config.getDomainName())
+                                                                       .type(RRType.A)
+                                                                       .ttl(300L)
+                                                                       .resourceRecords(resourceRecordList);
 
         Change.Builder change = Change.builder()
                                       .action(ChangeAction.UPSERT)
-                                      .resourceRecordSet(resource_recordset.build());
+                                      .resourceRecordSet(resourceRecordset.build());
 
-        List<Change> changes_list = new ArrayList<>();
-        changes_list.add(change.build());
-        change_batch.changes(changes_list);
+        final List<Change> changesList = new ArrayList<>();
+        changesList.add(change.build());
+        changeBatch.changes(changesList);
 
-        final ChangeResourceRecordSetsRequest.Builder resource_recordset_request =
+        final ChangeResourceRecordSetsRequest.Builder resourceRecordsetRequest =
                 ChangeResourceRecordSetsRequest.builder()
                                                .hostedZoneId(config.getHostedZoneId())
-                                               .changeBatch(change_batch.build());
+                                               .changeBatch(changeBatch.build());
 
         boolean result = false;
         try
         {
-            final ChangeResourceRecordSetsResponse resource_recordset_response =
-                    route53Client.changeResourceRecordSets(resource_recordset_request.build());
+            final ChangeResourceRecordSetsResponse resourceRecordsetResponse =
+                    route53Client.changeResourceRecordSets(resourceRecordsetRequest.build());
 
-            logger.info(String.valueOf(resource_recordset_response.changeInfo()));
+            logger.info(String.valueOf(resourceRecordsetResponse.changeInfo()));
             logger.info("Finished updating Route53");
 
             config.setCurrentIP(newIp);
@@ -161,7 +157,7 @@ public class Ddns53
             result = true;
         } catch (final Route53Exception caught)
         {
-            logger.error("Unable to update IP on Route53." + caught);
+            logger.error("Unable to update IP on Route53.", caught);
         }
 
         return result;
