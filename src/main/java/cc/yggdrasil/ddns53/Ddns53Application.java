@@ -31,7 +31,7 @@ public class Ddns53Application implements CommandLineRunner
         if (ddns53Config.parseArguments(args)) {
             ddns53Config.printDetails();
 
-            if (ddns53.updateRoute53Record()) {
+            if (ddns53.updateRoute53Record(ddns53Config)) {
                 ddns53Config.updateConfigFile();
             }
         }

@@ -22,35 +22,32 @@ import java.util.*;
 @Component
 public class Ddns53
 {
-
-    @NonNull
-    private final Ddns53Config config;
     private final Route53Client route53Client;
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @Autowired
-    public Ddns53(final Ddns53Config ddnsConfiguration)
+    public Ddns53()
     {
         route53Client = Route53Client.builder()
                                      .credentialsProvider(ProfileCredentialsProvider.create())
                                      .endpointOverride(URI.create("https://route53.amazonaws.com"))
                                      .build();
-        config = ddnsConfiguration;
     }
 
     /**
      * Updates the Route53 record with the given configuration.
      *
+     * @param ddnsConfiguration the current configuration
      * @return true if the Route53 record has been updated successfully, otherwise returns false
      */
-    public boolean updateRoute53Record()
+    public boolean updateRoute53Record(@NonNull final Ddns53Config ddnsConfiguration)
     {
-        final String newIp = getPublicIp();
+        final String newIp = getPublicIp(ddnsConfiguration);
 
         logger.info("Updating Route53 record...");
 
-        if (!config.getCurrentIP()
-                   .equals(newIp) && updateRoute53Ip(newIp))
+        if (!ddnsConfiguration.getCurrentIP()
+                   .equals(newIp) && updateRoute53Ip(ddnsConfiguration, newIp))
         {
             logger.info(String.format("Assigned new IP: %s", newIp));
             logger.info("Finished updating Route53 record!");
@@ -64,18 +61,19 @@ public class Ddns53
     /**
      * Retrieve the public IP of the network that we are currently connected to.
      *
+     * @param ddnsConfiguration the current configuration
      * @return the public IP of the network we are currently connected to
      */
-    private String getPublicIp()
+    private String getPublicIp(final Ddns53Config ddnsConfiguration)
     {
         String newIp = null;
 
-        logger.info(String.format("Obtaining IP from %s", config.getIpProvider()));
+        logger.info(String.format("Obtaining IP from %s", ddnsConfiguration.getIpProvider()));
 
         try
         {
 
-            URL url = new URL(config.getIpProvider());
+            URL url = new URL(ddnsConfiguration.getIpProvider());
 
             final String propKey = "User-Agent";
             final String propVal = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316" +
@@ -110,12 +108,13 @@ public class Ddns53
     /**
      * Update the IP on the Route53 record.
      *
+     * @param ddnsConfiguration the current configuration
      * @param newIp the new IP address
      * @return true if the IP has been updated, otherwise returns false
      */
-    private boolean updateRoute53Ip(final String newIp)
+    private boolean updateRoute53Ip(final Ddns53Config ddnsConfiguration, final String newIp)
     {
-        logger.info(String.format("Updating Route53 record for ID %s", config.getHostedZoneId()));
+        logger.info(String.format("Updating Route53 record for ID %s", ddnsConfiguration.getHostedZoneId()));
 
         final ChangeBatch.Builder changeBatch = ChangeBatch.builder();
 
@@ -125,7 +124,7 @@ public class Ddns53
                                              .build());
 
         ResourceRecordSet.Builder resourceRecordset = ResourceRecordSet.builder()
-                                                                       .name(config.getDomainName())
+                                                                       .name(ddnsConfiguration.getDomainName())
                                                                        .type(RRType.A)
                                                                        .ttl(300L)
                                                                        .resourceRecords(resourceRecordList);
@@ -140,7 +139,7 @@ public class Ddns53
 
         final ChangeResourceRecordSetsRequest.Builder resourceRecordsetRequest =
                 ChangeResourceRecordSetsRequest.builder()
-                                               .hostedZoneId(config.getHostedZoneId())
+                                               .hostedZoneId(ddnsConfiguration.getHostedZoneId())
                                                .changeBatch(changeBatch.build());
 
         boolean result = false;
@@ -152,7 +151,7 @@ public class Ddns53
             logger.info(String.valueOf(resourceRecordsetResponse.changeInfo()));
             logger.info("Finished updating Route53");
 
-            config.setCurrentIP(newIp);
+            ddnsConfiguration.setCurrentIP(newIp);
 
             result = true;
         } catch (final Route53Exception caught)
