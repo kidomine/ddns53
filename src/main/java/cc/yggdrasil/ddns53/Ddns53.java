@@ -97,7 +97,8 @@ public class Ddns53
             logger.info(String.format("Got new IP     : %s", newIp));
 
             in.close();
-        } catch (final Exception caught)
+        }
+        catch (final Exception caught)
         {
             logger.error("Unable to get new IP from provider.", caught);
         }

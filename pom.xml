@@ -81,6 +81,19 @@
         </dependencies>
     </dependencyManagement>
 
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <name>snapshots</name>
+            <url>https://yggdrasil.jfrog.io/artifactory/yggdrasil-libs-snapshot</url>
+        </snapshotRepository>
+        <repository>
+            <id>central</id>
+            <name>releases</name>
+            <url>https://yggdrasil.jfrog.io/artifactory/yggdrasil-libs-release</url>
+        </repository>
+    </distributionManagement>
+
     <build>
         <plugins>
             <plugin>
