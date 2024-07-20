@@ -5,10 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.3.4.RELEASE</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <groupId>cc.yggdrasil</groupId>
+        <artifactId>yggdrasil-project</artifactId>
+        <version>1.0.6-SNAPSHOT</version>
     </parent>
 
     <groupId>cc.yggdrassil</groupId>
@@ -65,6 +64,13 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>2.3.4.RELEASE</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
@@ -82,16 +88,16 @@
     </dependencyManagement>
 
     <distributionManagement>
-        <snapshotRepository>
-            <id>central</id>
-            <name>snapshots</name>
-            <url>https://yggdrasil.jfrog.io/artifactory/yggdrasil-libs-snapshot</url>
-        </snapshotRepository>
         <repository>
-            <id>central</id>
-            <name>releases</name>
-            <url>https://yggdrasil.jfrog.io/artifactory/yggdrasil-libs-release</url>
+            <id>yggdrasil-java-repo</id>
+            <name>yggdrasil-java-repo</name>
+            <url>https://yggdrasil-415635936839.d.codeartifact.us-east-1.amazonaws.com/maven/java-repo/</url>
         </repository>
+        <snapshotRepository>
+            <id>yggdrasil-java-repo</id>
+            <name>yggdrasil-java-repo</name>
+            <url>https://yggdrasil-415635936839.d.codeartifact.us-east-1.amazonaws.com/maven/java-repo/</url>
+        </snapshotRepository>
     </distributionManagement>
 
     <build>
@@ -99,6 +105,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>3.3.2</version>
             </plugin>
         </plugins>
     </build>
