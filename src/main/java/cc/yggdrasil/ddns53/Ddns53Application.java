@@ -8,13 +8,17 @@ import org.springframework.boot.autoconfigure.*;
 @SpringBootApplication
 public class Ddns53Application implements CommandLineRunner
 {
-    private Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+
+    private final Ddns53 ddns53;
+    private final Ddns53Config ddns53Config;
 
     @Autowired
-    private Ddns53 ddns53;
-
-    @Autowired
-    Ddns53Config ddns53Config;
+    public Ddns53Application(final Ddns53 ddns53, final Ddns53Config ddns53Config)
+    {
+        this.ddns53 = ddns53;
+        this.ddns53Config = ddns53Config;
+    }
 
     public static void main(String[] args)
     {
